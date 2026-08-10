@@ -79,6 +79,7 @@ const OrdersTab: FC = () => {
               <div className="text-right shrink-0">
                 <p className="text-xs text-neutral-500">{order.selected_games.length} jogos</p>
                 <p className="text-xs text-neutral-500">{order.selected_accessories.length} acessórios</p>
+                {order.total_price != null && <p className="text-sm font-bold text-xbox-400 mt-0.5">R$ {order.total_price.toFixed(2).replace('.', ',')}</p>}
               </div>
             </button>
 
@@ -112,6 +113,12 @@ const OrdersTab: FC = () => {
                 )}
 
                 <div className="flex flex-wrap gap-2 pt-2 border-t border-neutral-800">
+                  {order.total_price != null && (
+                    <div className="w-full flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Valor do Pedido</span>
+                      <span className="text-sm font-bold text-xbox-400">R$ {order.total_price.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                  )}
                   {ORDER_STATUS.map((s) => (
                     <button key={s.value} onClick={() => updateStatus(order.id, s.value)}
                       className={`text-xs px-3 py-1.5 rounded-lg border font-semibold transition-all ${order.status === s.value ? s.color : 'border-neutral-700 text-neutral-500 hover:text-neutral-300'}`}>

@@ -1,5 +1,5 @@
 import { useState, useEffect, type FC } from 'react';
-import { Settings, Loader2, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Image as ImageIcon } from 'lucide-react';
+import { Settings, Loader2, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Image as ImageIcon, DollarSign } from 'lucide-react';
 import type { StoreSettings } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { LoadingState, ErrorState, Field, inputClass } from './shared';
@@ -18,6 +18,10 @@ const SettingsTab: FC = () => {
   const [heroSubtitle, setHeroSubtitle] = useState('');
   const [badgeText, setBadgeText] = useState('');
   const [backgroundImageUrl, setBackgroundImageUrl] = useState('');
+  const [pricePackage1, setPricePackage1] = useState('');
+  const [pricePackage2, setPricePackage2] = useState('');
+  const [pricePackage3, setPricePackage3] = useState('');
+  const [priceUnlockRgh, setPriceUnlockRgh] = useState('');
 
   const load = async () => {
     setLoading(true);
@@ -32,6 +36,10 @@ const SettingsTab: FC = () => {
       setHeroSubtitle(data.hero_subtitle);
       setBadgeText(data.badge_text);
       setBackgroundImageUrl(data.background_image_url || '');
+      setPricePackage1(data.price_package_1?.toString() || '120');
+      setPricePackage2(data.price_package_2?.toString() || '150');
+      setPricePackage3(data.price_package_3?.toString() || '180');
+      setPriceUnlockRgh(data.price_unlock_rgh?.toString() || '5');
     }
     setLoading(false);
   };
@@ -48,6 +56,10 @@ const SettingsTab: FC = () => {
       hero_subtitle: heroSubtitle.trim(),
       badge_text: badgeText.trim(),
       background_image_url: backgroundImageUrl.trim() || null,
+      price_package_1: parseFloat(pricePackage1) || 120,
+      price_package_2: parseFloat(pricePackage2) || 150,
+      price_package_3: parseFloat(pricePackage3) || 180,
+      price_unlock_rgh: parseFloat(priceUnlockRgh) || 5,
       updated_at: new Date().toISOString(),
     }).eq('id', 1);
 
@@ -120,6 +132,40 @@ const SettingsTab: FC = () => {
             <img src={backgroundImageUrl} alt="Preview do fundo" className="w-full h-32 object-cover" />
           </div>
         )}
+      </section>
+
+      {/* Pricing config */}
+      <section className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <DollarSign className="w-5 h-5 text-xbox-400" />
+          <h2 className="text-lg font-bold text-white">Configurações de Preço</h2>
+        </div>
+        <div className="space-y-4">
+          <Field label="Pacote 1 — Até 15 jogos" hint="Preço cobrado quando o cliente seleciona até 15 jogos">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
+              <input type="number" step="0.01" value={pricePackage1} onChange={(e) => setPricePackage1(e.target.value)} placeholder="120.00" className={inputClass + ' pl-10'} />
+            </div>
+          </Field>
+          <Field label="Pacote 2 — Até 25 jogos" hint="Preço cobrado quando o cliente seleciona de 16 a 25 jogos">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
+              <input type="number" step="0.01" value={pricePackage2} onChange={(e) => setPricePackage2(e.target.value)} placeholder="150.00" className={inputClass + ' pl-10'} />
+            </div>
+          </Field>
+          <Field label="Pacote 3 — Até 30 jogos" hint="Preço cobrado quando o cliente seleciona de 26 a 30 jogos">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
+              <input type="number" step="0.01" value={pricePackage3} onChange={(e) => setPricePackage3(e.target.value)} placeholder="180.00" className={inputClass + ' pl-10'} />
+            </div>
+          </Field>
+          <Field label="Taxa de Desbloqueio RGH" hint="Cobrada apenas quando o console ainda é original (bloqueado)">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
+              <input type="number" step="0.01" value={priceUnlockRgh} onChange={(e) => setPriceUnlockRgh(e.target.value)} placeholder="5.00" className={inputClass + ' pl-10'} />
+            </div>
+          </Field>
+        </div>
       </section>
 
       {/* Save button + feedback */}

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type FC } from 'react';
-import { Search, Plus, Minus, Trash2, ArrowRight, ArrowLeft, Send, Gamepad2, HardDrive, CheckCircle2, User, Phone, MapPin, X, ShoppingBag, Sparkles, Package, Loader2, AlertCircle } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ArrowRight, ArrowLeft, Send, Gamepad2, HardDrive, CheckCircle2, User, Phone, MapPin, X, ShoppingBag, Sparkles, Package, Loader2, AlertCircle, Receipt } from 'lucide-react';
 import type { Game, Accessory, ConsoleModel, ConsoleStatus, SelectedGame, SelectedAccessory, StoreSettings } from '@/types';
 import { supabase } from '@/lib/supabase';
 
@@ -23,6 +23,7 @@ const Funnel: FC = () => {
   const [model, setModel] = useState<ConsoleModel | null>(null);
   const [status, setStatus] = useState<ConsoleStatus | null>(null);
   const [search, setSearch] = useState('');
+  const [customGameName, setCustomGameName] = useState('');
   const [selectedGames, setSelectedGames] = useState<Game[]>([]);
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
   const [name, setName] = useState('');
@@ -64,9 +65,24 @@ const Funnel: FC = () => {
     return games.filter((g) => g.name.toLowerCase().includes(q) || g.genre.toLowerCase().includes(q));
   }, [search, games]);
 
-  const addGame = (game: Game) => setSelectedGames((prev) => (prev.some((g) => g.id === game.id) ? prev : [...prev, game]));
+  const addGame = (game: Game) => setSelectedGames((prev) => {
+    if (prev.length >= 30) return prev;
+    return prev.some((g) => g.id === game.id) ? prev : [...prev, game];
+  });
   const removeGame = (id: string) => setSelectedGames((prev) => prev.filter((g) => g.id !== id));
   const clearGames = () => setSelectedGames([]);
+
+  const addCustomGame = () => {
+    const trimmed = customGameName.trim();
+    if (!trimmed) return;
+    if (selectedGames.length >= 30) return;
+    const customId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const customGame: Game = { id: customId, name: trimmed, genre: 'Personalizado', year: null };
+    setSelectedGames((prev) => [...prev, customGame]);
+    setCustomGameName('');
+  };
+
+  const MAX_GAMES = 30;
 
   const toggleAccessory = (acc: Accessory) => {
     setSelectedAccessories((prev) =>
@@ -76,6 +92,30 @@ const Funnel: FC = () => {
 
   const canAdvanceBuilder = model !== null && status !== null && selectedGames.length > 0;
   const canSubmitContact = name.trim() !== '' && phone.replace(/\D/g, '').length >= 10 && neighborhood.trim() !== '';
+
+  const formatBRL = (n: number) => `R$ ${n.toFixed(2).replace('.', ',')}`;
+
+  const calculatePricing = () => {
+    const count = selectedGames.length;
+    const p1 = settings?.price_package_1 ?? 120;
+    const p2 = settings?.price_package_2 ?? 150;
+    const p3 = settings?.price_package_3 ?? 180;
+    const unlockFee = settings?.price_unlock_rgh ?? 5;
+
+    let packagePrice = 0;
+    let packageLabel = '';
+    if (count > 0 && count <= 15) { packagePrice = p1; packageLabel = `Pacote 1 — Até 15 jogos`; }
+    else if (count <= 25) { packagePrice = p2; packageLabel = `Pacote 2 — Até 25 jogos`; }
+    else { packagePrice = p3; packageLabel = `Pacote 3 — Até 30 jogos`; }
+
+    const needsUnlock = status === 'bloqueado';
+    const unlockPrice = needsUnlock ? unlockFee : 0;
+    const total = packagePrice + unlockPrice;
+
+    return { packagePrice, packageLabel, needsUnlock, unlockPrice, total, gameCount: count };
+  };
+
+  const pricing = calculatePricing();
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -103,6 +143,7 @@ const Funnel: FC = () => {
       console_status: status,
       selected_games: gameSnapshots,
       selected_accessories: [],
+      total_price: pricing.total,
     }).select('id').single();
 
     setSubmitting(false);
@@ -259,7 +300,36 @@ const Funnel: FC = () => {
                 )}
               </div>
 
+              {/* Custom game input */}
+              <div className="mt-3 pt-3 border-t border-neutral-800">
+                <p className="text-xs text-neutral-500 mb-2">Não encontrou seu jogo? Digite o nome aqui:</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customGameName}
+                    onChange={(e) => setCustomGameName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomGame(); } }}
+                    placeholder="Ex: Skate 3"
+                    disabled={selectedGames.length >= MAX_GAMES}
+                    className="flex-1 bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-xbox-500 transition-colors disabled:opacity-50"
+                  />
+                  <button
+                    onClick={addCustomGame}
+                    disabled={!customGameName.trim() || selectedGames.length >= MAX_GAMES}
+                    className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-neutral-700 text-white text-sm font-semibold hover:bg-neutral-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Plus className="w-4 h-4" /> Adicionar
+                  </button>
+                </div>
+              </div>
+
               <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
+                {selectedGames.length >= MAX_GAMES && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs mb-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    Limite máximo de 30 jogos atingido. Remova um jogo para adicionar outro.
+                  </div>
+                )}
                 {filteredGames.length === 0 ? (
                   <div className="text-center py-8 text-neutral-500 text-sm">Nenhum jogo encontrado para "{search}"</div>
                 ) : (
@@ -363,6 +433,29 @@ const Funnel: FC = () => {
                     <input type="text" value={neighborhood} onChange={(e) => setNeighborhood(e.target.value)} placeholder="Digite seu bairro"
                       className="w-full bg-neutral-800 border border-neutral-700 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-xbox-500 focus:ring-1 focus:ring-xbox-500 transition-colors" />
                   </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Order Summary */}
+            <section className="bg-neutral-900/80 backdrop-blur border border-neutral-800 rounded-2xl p-5">
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-xbox-400" /> Resumo do Pedido
+              </h2>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-neutral-400">{pricing.gameCount} jogo(s) — {pricing.packageLabel}</span>
+                  <span className="text-white font-semibold">{formatBRL(pricing.packagePrice)}</span>
+                </div>
+                {pricing.needsUnlock && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-400">Serviço de Desbloqueio</span>
+                    <span className="text-white font-semibold">{formatBRL(pricing.unlockPrice)}</span>
+                  </div>
+                )}
+                <div className="pt-3 border-t border-neutral-800 flex items-center justify-between">
+                  <span className="text-sm font-bold text-white">Valor Total</span>
+                  <span className="text-xl font-bold text-xbox-400 font-heading">{formatBRL(pricing.total)}</span>
                 </div>
               </div>
             </section>

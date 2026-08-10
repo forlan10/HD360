@@ -41,6 +41,7 @@ export interface Order {
   selected_games: SelectedGame[];
   selected_accessories: SelectedAccessory[];
   status: OrderStatus;
+  total_price: number | null;
   created_at: string;
 }
 
@@ -61,5 +62,9 @@ export interface StoreSettings {
   hero_subtitle: string;
   badge_text: string;
   background_image_url: string | null;
+  price_package_1: number;
+  price_package_2: number;
+  price_package_3: number;
+  price_unlock_rgh: number;
   updated_at?: string;
 }
