@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, type FC } from 'react';
 import { Search, Plus, Minus, Trash2, ArrowRight, ArrowLeft, Send, Gamepad2, HardDrive, CheckCircle2, User, Phone, MapPin, X, ShoppingBag, Sparkles, Package, Loader2, AlertCircle, Receipt } from 'lucide-react';
 import type { Game, Accessory, ConsoleModel, ConsoleStatus, SelectedGame, SelectedAccessory, StoreSettings } from '@/types';
 import { supabase } from '@/lib/supabase';
+import WhatsAppButton from '@/components/WhatsAppButton';
 
 type Step = 'builder' | 'contact' | 'upsell' | 'success';
 
@@ -206,6 +207,9 @@ const Funnel: FC = () => {
 
   return (
     <div className="min-h-screen bg-neutral-950 relative" style={bgStyle}>
+      {settings?.whatsapp_button_enabled && settings.whatsapp_number && (
+        <WhatsAppButton number={settings.whatsapp_number} />
+      )}
       {!bgImageUrl && (
         <>
           <div className="fixed inset-0 pointer-events-none opacity-[0.03]" style={{
@@ -566,14 +570,23 @@ const Funnel: FC = () => {
             </p>
             <p className="text-neutral-500 text-xs mb-8">Confirme seu número e fique atento às mensagens.</p>
 
-            <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 w-full max-w-sm text-left mb-6">
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-neutral-400">Console</span><span className="text-white font-semibold">{model}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-400">Status</span><span className="text-white font-semibold text-right">{status ? statusLabel(status) : ''}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-400">Jogos</span><span className="text-white font-semibold">{selectedGames.length}</span></div>
-                <div className="flex justify-between"><span className="text-neutral-400">Acessórios</span><span className="text-white font-semibold">{selectedAccessories.length}</span></div>
+            {settings?.invoice_screen_enabled && (
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 w-full max-w-sm text-left mb-6">
+                <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+                  <Receipt className="w-4 h-4 text-xbox-400" /> Resumo do Pedido
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-neutral-400">Console</span><span className="text-white font-semibold">{model}</span></div>
+                  <div className="flex justify-between"><span className="text-neutral-400">Status</span><span className="text-white font-semibold text-right">{status ? statusLabel(status) : ''}</span></div>
+                  <div className="flex justify-between"><span className="text-neutral-400">Jogos</span><span className="text-white font-semibold">{selectedGames.length}</span></div>
+                  <div className="flex justify-between"><span className="text-neutral-400">Acessórios</span><span className="text-white font-semibold">{selectedAccessories.length}</span></div>
+                  <div className="pt-2 border-t border-neutral-800 flex justify-between">
+                    <span className="text-neutral-400 font-bold">Valor Total</span>
+                    <span className="text-xbox-400 font-bold">{formatBRL(pricing.total)}</span>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             <button onClick={restart} className="px-6 py-3 rounded-xl bg-xbox-500 text-white font-semibold hover:bg-xbox-400 transition-all active:scale-95">
               Fazer Novo Pedido

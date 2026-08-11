@@ -66,5 +66,8 @@ export interface StoreSettings {
   price_package_2: number;
   price_package_3: number;
   price_unlock_rgh: number;
+  whatsapp_button_enabled: boolean;
+  whatsapp_number: string;
+  invoice_screen_enabled: boolean;
   updated_at?: string;
 }

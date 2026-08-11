@@ -1,5 +1,5 @@
 import { useState, useEffect, type FC } from 'react';
-import { Settings, Loader2, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Image as ImageIcon, DollarSign } from 'lucide-react';
+import { Settings, Loader2, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Image as ImageIcon, DollarSign, MessageCircle, Receipt } from 'lucide-react';
 import type { StoreSettings } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { LoadingState, ErrorState, Field, inputClass } from './shared';
@@ -22,6 +22,9 @@ const SettingsTab: FC = () => {
   const [pricePackage2, setPricePackage2] = useState('');
   const [pricePackage3, setPricePackage3] = useState('');
   const [priceUnlockRgh, setPriceUnlockRgh] = useState('');
+  const [whatsappEnabled, setWhatsappEnabled] = useState(false);
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [invoiceEnabled, setInvoiceEnabled] = useState(true);
 
   const load = async () => {
     setLoading(true);
@@ -40,6 +43,9 @@ const SettingsTab: FC = () => {
       setPricePackage2(data.price_package_2?.toString() || '150');
       setPricePackage3(data.price_package_3?.toString() || '180');
       setPriceUnlockRgh(data.price_unlock_rgh?.toString() || '5');
+      setWhatsappEnabled(data.whatsapp_button_enabled ?? false);
+      setWhatsappNumber(data.whatsapp_number || '');
+      setInvoiceEnabled(data.invoice_screen_enabled ?? true);
     }
     setLoading(false);
   };
@@ -60,6 +66,9 @@ const SettingsTab: FC = () => {
       price_package_2: parseFloat(pricePackage2) || 150,
       price_package_3: parseFloat(pricePackage3) || 180,
       price_unlock_rgh: parseFloat(priceUnlockRgh) || 5,
+      whatsapp_button_enabled: whatsappEnabled,
+      whatsapp_number: whatsappNumber.replace(/\D/g, ''),
+      invoice_screen_enabled: invoiceEnabled,
       updated_at: new Date().toISOString(),
     }).eq('id', 1);
 
@@ -165,6 +174,61 @@ const SettingsTab: FC = () => {
               <input type="number" step="0.01" value={priceUnlockRgh} onChange={(e) => setPriceUnlockRgh(e.target.value)} placeholder="5.00" className={inputClass + ' pl-10'} />
             </div>
           </Field>
+        </div>
+      </section>
+
+      {/* WhatsApp + Invoice config */}
+      <section className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <MessageCircle className="w-5 h-5 text-xbox-400" />
+          <h2 className="text-lg font-bold text-white">Controles de Conversão</h2>
+        </div>
+        <div className="space-y-4">
+          <button
+            onClick={() => setWhatsappEnabled(!whatsappEnabled)}
+            className="w-full flex items-center justify-between p-4 rounded-xl bg-neutral-800/50 border border-neutral-800 hover:border-neutral-700 transition-all"
+          >
+            <div className="text-left">
+              <p className="text-sm font-semibold text-white">Ativar Botão Flutuante de WhatsApp</p>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                {whatsappEnabled ? 'Botão de suporte visível em todas as etapas' : 'Botão de suporte desativado'}
+              </p>
+            </div>
+            {whatsappEnabled ? (
+              <ToggleRight className="w-10 h-10 text-xbox-400 shrink-0" />
+            ) : (
+              <ToggleLeft className="w-10 h-10 text-neutral-600 shrink-0" />
+            )}
+          </button>
+          <Field label="Número do WhatsApp para Suporte" hint="Apenas números, com DDI e DDD (ex: 5511999999999). Só funciona se o toggle acima estiver ativo.">
+            <input
+              type="tel"
+              value={whatsappNumber}
+              onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ''))}
+              placeholder="5511999999999"
+              disabled={!whatsappEnabled}
+              className={inputClass + ' disabled:opacity-50 disabled:cursor-not-allowed'}
+            />
+          </Field>
+          <button
+            onClick={() => setInvoiceEnabled(!invoiceEnabled)}
+            className="w-full flex items-center justify-between p-4 rounded-xl bg-neutral-800/50 border border-neutral-800 hover:border-neutral-700 transition-all"
+          >
+            <div className="text-left">
+              <div className="flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-neutral-400" />
+                <p className="text-sm font-semibold text-white">Exibir Fatura/Resumo no Final do Pedido</p>
+              </div>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                {invoiceEnabled ? 'Cliente verá o resumo do pedido na tela de sucesso' : 'Apenas mensagem de agradecimento na tela final'}
+              </p>
+            </div>
+            {invoiceEnabled ? (
+              <ToggleRight className="w-10 h-10 text-xbox-400 shrink-0" />
+            ) : (
+              <ToggleLeft className="w-10 h-10 text-neutral-600 shrink-0" />
+            )}
+          </button>
         </div>
       </section>
 
