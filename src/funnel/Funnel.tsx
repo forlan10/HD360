@@ -4,7 +4,7 @@ import type { Game, Accessory, ConsoleModel, ConsoleStatus, SelectedGame, Select
 import { supabase } from '@/lib/supabase';
 import WhatsAppButton from '@/components/WhatsAppButton';
 
-type Step = 'builder' | 'contact' | 'upsell' | 'success';
+type Step = 'builder' | 'contact' | 'upsell' | 'invoice' | 'success';
 
 const CONSOLE_MODELS: { value: ConsoleModel; label: string; desc: string }[] = [
   { value: 'Fat', label: 'Fat', desc: 'Modelo original' },
@@ -66,8 +66,13 @@ const Funnel: FC = () => {
     return games.filter((g) => g.name.toLowerCase().includes(q) || g.genre.toLowerCase().includes(q));
   }, [search, games]);
 
+  const tier1Max = settings?.tier_1_max ?? 15;
+  const tier2Max = settings?.tier_2_max ?? 25;
+  const tier3Max = settings?.tier_3_max ?? 30;
+  const MAX_GAMES = tier3Max;
+
   const addGame = (game: Game) => setSelectedGames((prev) => {
-    if (prev.length >= 30) return prev;
+    if (prev.length >= MAX_GAMES) return prev;
     return prev.some((g) => g.id === game.id) ? prev : [...prev, game];
   });
   const removeGame = (id: string) => setSelectedGames((prev) => prev.filter((g) => g.id !== id));
@@ -76,14 +81,12 @@ const Funnel: FC = () => {
   const addCustomGame = () => {
     const trimmed = customGameName.trim();
     if (!trimmed) return;
-    if (selectedGames.length >= 30) return;
+    if (selectedGames.length >= MAX_GAMES) return;
     const customId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const customGame: Game = { id: customId, name: trimmed, genre: 'Personalizado', year: null };
     setSelectedGames((prev) => [...prev, customGame]);
     setCustomGameName('');
   };
-
-  const MAX_GAMES = 30;
 
   const toggleAccessory = (acc: Accessory) => {
     setSelectedAccessories((prev) =>
@@ -102,12 +105,15 @@ const Funnel: FC = () => {
     const p2 = settings?.price_package_2 ?? 150;
     const p3 = settings?.price_package_3 ?? 180;
     const unlockFee = settings?.price_unlock_rgh ?? 5;
+    const t1 = settings?.tier_1_max ?? 15;
+    const t2 = settings?.tier_2_max ?? 25;
+    const t3 = settings?.tier_3_max ?? 30;
 
     let packagePrice = 0;
     let packageLabel = '';
-    if (count > 0 && count <= 15) { packagePrice = p1; packageLabel = `Pacote 1 — Até 15 jogos`; }
-    else if (count <= 25) { packagePrice = p2; packageLabel = `Pacote 2 — Até 25 jogos`; }
-    else { packagePrice = p3; packageLabel = `Pacote 3 — Até 30 jogos`; }
+    if (count > 0 && count <= t1) { packagePrice = p1; packageLabel = `Pacote 1 — Até ${t1} jogos`; }
+    else if (count <= t2) { packagePrice = p2; packageLabel = `Pacote 2 — Até ${t2} jogos`; }
+    else { packagePrice = p3; packageLabel = `Pacote 3 — Até ${t3} jogos`; }
 
     const needsUnlock = status === 'bloqueado';
     const unlockPrice = needsUnlock ? unlockFee : 0;
@@ -153,8 +159,52 @@ const Funnel: FC = () => {
       setSubmitError(true);
     } else {
       setOrderId(data.id);
-      // If upsell is enabled, go to upsell screen; otherwise go to success
-      if (settings?.upsell_enabled && accessories.length > 0) {
+      goToNextPostPurchaseStep();
+    }
+  };
+
+  // Add selected accessories to the already-created order
+  const addAccessoriesToOrder = async () => {
+    if (orderId && selectedAccessories.length > 0) {
+      const accSnapshots: SelectedAccessory[] = selectedAccessories.map((a) => ({ id: a.id, name: a.name, price: a.price }));
+      await supabase.from('orders').update({ selected_accessories: accSnapshots }).eq('id', orderId);
+    }
+    goToNextPostPurchaseStep('upsell');
+  };
+
+  const skipAccessories = () => {
+    goToNextPostPurchaseStep('upsell');
+  };
+
+  const goToNextPostPurchaseStep = (fromStep?: 'contact' | 'upsell') => {
+    const order = settings?.post_purchase_order ?? 'upsell_first';
+    const upsellActive = settings?.upsell_enabled && accessories.length > 0;
+    const invoiceActive = settings?.invoice_screen_enabled ?? true;
+
+    if (fromStep === 'upsell') {
+      // After upsell, go to invoice (if active) then success
+      if (invoiceActive) {
+        setStep('invoice');
+      } else {
+        setStep('success');
+      }
+      return;
+    }
+
+    // from contact (initial call)
+    if (order === 'upsell_first') {
+      if (upsellActive) {
+        setStep('upsell');
+      } else if (invoiceActive) {
+        setStep('invoice');
+      } else {
+        setStep('success');
+      }
+    } else {
+      // invoice_first
+      if (invoiceActive) {
+        setStep('invoice');
+      } else if (upsellActive) {
         setStep('upsell');
       } else {
         setStep('success');
@@ -162,20 +212,7 @@ const Funnel: FC = () => {
     }
   };
 
-  // Add selected accessories to the already-created order
-  const addAccessoriesToOrder = async () => {
-    if (!orderId || selectedAccessories.length === 0) {
-      setStep('success');
-      return;
-    }
-    const accSnapshots: SelectedAccessory[] = selectedAccessories.map((a) => ({ id: a.id, name: a.name, price: a.price }));
-    await supabase.from('orders').update({ selected_accessories: accSnapshots }).eq('id', orderId);
-    setStep('success');
-  };
-
-  const skipAccessories = () => {
-    setStep('success');
-  };
+  const goToSuccess = () => setStep('success');
 
   const restart = () => {
     setStep('builder');
@@ -331,7 +368,7 @@ const Funnel: FC = () => {
                 {selectedGames.length >= MAX_GAMES && (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs mb-2">
                     <AlertCircle className="w-4 h-4 shrink-0" />
-                    Limite máximo de 30 jogos atingido. Remova um jogo para adicionar outro.
+                    Limite máximo de {MAX_GAMES} jogos atingido. Remova um jogo para adicionar outro.
                   </div>
                 )}
                 {filteredGames.length === 0 ? (
@@ -441,29 +478,6 @@ const Funnel: FC = () => {
               </div>
             </section>
 
-            {/* Order Summary */}
-            <section className="bg-neutral-900/80 backdrop-blur border border-neutral-800 rounded-2xl p-5">
-              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Receipt className="w-5 h-5 text-xbox-400" /> Resumo do Pedido
-              </h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-neutral-400">{pricing.gameCount} jogo(s) — {pricing.packageLabel}</span>
-                  <span className="text-white font-semibold">{formatBRL(pricing.packagePrice)}</span>
-                </div>
-                {pricing.needsUnlock && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-400">Serviço de Desbloqueio</span>
-                    <span className="text-white font-semibold">{formatBRL(pricing.unlockPrice)}</span>
-                  </div>
-                )}
-                <div className="pt-3 border-t border-neutral-800 flex items-center justify-between">
-                  <span className="text-sm font-bold text-white">Valor Total</span>
-                  <span className="text-xl font-bold text-xbox-400 font-heading">{formatBRL(pricing.total)}</span>
-                </div>
-              </div>
-            </section>
-
             {submitError && (
               <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
                 <AlertCircle className="w-4 h-4 shrink-0" /> Erro ao registrar pedido. Tente novamente.
@@ -480,6 +494,35 @@ const Funnel: FC = () => {
               </button>
             </div>
             {!canSubmitContact && !submitting && <p className="text-center text-xs text-neutral-500">Preencha todos os campos para finalizar</p>}
+          </div>
+        )}
+
+        {/* STEP: Invoice (post-purchase) */}
+        {step === 'invoice' && (
+          <div className="flex flex-col items-center justify-center text-center py-10 animate-slide-up">
+            <div className="w-16 h-16 rounded-full bg-xbox-500/15 border-2 border-xbox-500 flex items-center justify-center mb-5">
+              <Receipt className="w-8 h-8 text-xbox-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Resumo do Pedido</h2>
+            <p className="text-neutral-400 text-sm mb-6">Confira os detalhes do seu pedido.</p>
+            <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 w-full max-w-sm text-left mb-6">
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between"><span className="text-neutral-400">Console</span><span className="text-white font-semibold">{model}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-400">Status</span><span className="text-white font-semibold text-right">{status ? statusLabel(status) : ''}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-400">Jogos</span><span className="text-white font-semibold">{selectedGames.length}</span></div>
+                <div className="flex justify-between"><span className="text-neutral-400">Acessórios</span><span className="text-white font-semibold">{selectedAccessories.length}</span></div>
+                <div className="pt-3 border-t border-neutral-800 flex justify-between">
+                  <span className="text-neutral-400 font-bold">Valor Total</span>
+                  <span className="text-xbox-400 font-bold">{formatBRL(pricing.total)}</span>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => {
+              const upsellActive = settings?.upsell_enabled && accessories.length > 0;
+              setStep(upsellActive ? 'upsell' : 'success');
+            }} className="w-full max-w-sm flex items-center justify-center gap-2 py-4 rounded-2xl text-base font-bold bg-xbox-500 text-white hover:bg-xbox-400 active:scale-[0.98] transition-all">
+              Continuar <ArrowRight className="w-5 h-5" />
+            </button>
           </div>
         )}
 
@@ -569,24 +612,6 @@ const Funnel: FC = () => {
               Entraremos em contato no seu WhatsApp <span className="text-white font-semibold">{phone}</span> para alinhar a entrega.
             </p>
             <p className="text-neutral-500 text-xs mb-8">Confirme seu número e fique atento às mensagens.</p>
-
-            {settings?.invoice_screen_enabled && (
-              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 w-full max-w-sm text-left mb-6">
-                <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                  <Receipt className="w-4 h-4 text-xbox-400" /> Resumo do Pedido
-                </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-neutral-400">Console</span><span className="text-white font-semibold">{model}</span></div>
-                  <div className="flex justify-between"><span className="text-neutral-400">Status</span><span className="text-white font-semibold text-right">{status ? statusLabel(status) : ''}</span></div>
-                  <div className="flex justify-between"><span className="text-neutral-400">Jogos</span><span className="text-white font-semibold">{selectedGames.length}</span></div>
-                  <div className="flex justify-between"><span className="text-neutral-400">Acessórios</span><span className="text-white font-semibold">{selectedAccessories.length}</span></div>
-                  <div className="pt-2 border-t border-neutral-800 flex justify-between">
-                    <span className="text-neutral-400 font-bold">Valor Total</span>
-                    <span className="text-xbox-400 font-bold">{formatBRL(pricing.total)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <button onClick={restart} className="px-6 py-3 rounded-xl bg-xbox-500 text-white font-semibold hover:bg-xbox-400 transition-all active:scale-95">
               Fazer Novo Pedido

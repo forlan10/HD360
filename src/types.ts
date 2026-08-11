@@ -69,5 +69,9 @@ export interface StoreSettings {
   whatsapp_button_enabled: boolean;
   whatsapp_number: string;
   invoice_screen_enabled: boolean;
+  post_purchase_order: 'upsell_first' | 'invoice_first';
+  tier_1_max: number;
+  tier_2_max: number;
+  tier_3_max: number;
   updated_at?: string;
 }

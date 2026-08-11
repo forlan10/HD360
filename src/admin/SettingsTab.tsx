@@ -1,5 +1,5 @@
 import { useState, useEffect, type FC } from 'react';
-import { Settings, Loader2, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Image as ImageIcon, DollarSign, MessageCircle, Receipt } from 'lucide-react';
+import { Settings, Loader2, CheckCircle2, AlertCircle, ToggleLeft, ToggleRight, Image as ImageIcon, DollarSign, MessageCircle, Receipt, ArrowDownUp } from 'lucide-react';
 import type { StoreSettings } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { LoadingState, ErrorState, Field, inputClass } from './shared';
@@ -25,6 +25,10 @@ const SettingsTab: FC = () => {
   const [whatsappEnabled, setWhatsappEnabled] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [invoiceEnabled, setInvoiceEnabled] = useState(true);
+  const [postPurchaseOrder, setPostPurchaseOrder] = useState<'upsell_first' | 'invoice_first'>('upsell_first');
+  const [tier1Max, setTier1Max] = useState('15');
+  const [tier2Max, setTier2Max] = useState('25');
+  const [tier3Max, setTier3Max] = useState('30');
 
   const load = async () => {
     setLoading(true);
@@ -46,6 +50,10 @@ const SettingsTab: FC = () => {
       setWhatsappEnabled(data.whatsapp_button_enabled ?? false);
       setWhatsappNumber(data.whatsapp_number || '');
       setInvoiceEnabled(data.invoice_screen_enabled ?? true);
+      setPostPurchaseOrder(data.post_purchase_order ?? 'upsell_first');
+      setTier1Max(data.tier_1_max?.toString() || '15');
+      setTier2Max(data.tier_2_max?.toString() || '25');
+      setTier3Max(data.tier_3_max?.toString() || '30');
     }
     setLoading(false);
   };
@@ -69,6 +77,10 @@ const SettingsTab: FC = () => {
       whatsapp_button_enabled: whatsappEnabled,
       whatsapp_number: whatsappNumber.replace(/\D/g, ''),
       invoice_screen_enabled: invoiceEnabled,
+      post_purchase_order: postPurchaseOrder,
+      tier_1_max: parseInt(tier1Max) || 15,
+      tier_2_max: parseInt(tier2Max) || 25,
+      tier_3_max: parseInt(tier3Max) || 30,
       updated_at: new Date().toISOString(),
     }).eq('id', 1);
 
@@ -150,24 +162,39 @@ const SettingsTab: FC = () => {
           <h2 className="text-lg font-bold text-white">Configurações de Preço</h2>
         </div>
         <div className="space-y-4">
-          <Field label="Pacote 1 — Até 15 jogos" hint="Preço cobrado quando o cliente seleciona até 15 jogos">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
-              <input type="number" step="0.01" value={pricePackage1} onChange={(e) => setPricePackage1(e.target.value)} placeholder="120.00" className={inputClass + ' pl-10'} />
-            </div>
-          </Field>
-          <Field label="Pacote 2 — Até 25 jogos" hint="Preço cobrado quando o cliente seleciona de 16 a 25 jogos">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
-              <input type="number" step="0.01" value={pricePackage2} onChange={(e) => setPricePackage2(e.target.value)} placeholder="150.00" className={inputClass + ' pl-10'} />
-            </div>
-          </Field>
-          <Field label="Pacote 3 — Até 30 jogos" hint="Preço cobrado quando o cliente seleciona de 26 a 30 jogos">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
-              <input type="number" step="0.01" value={pricePackage3} onChange={(e) => setPricePackage3(e.target.value)} placeholder="180.00" className={inputClass + ' pl-10'} />
-            </div>
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Pacote 1 — Limite de jogos">
+              <input type="number" value={tier1Max} onChange={(e) => setTier1Max(e.target.value)} placeholder="15" className={inputClass} />
+            </Field>
+            <Field label="Pacote 1 — Preço">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
+                <input type="number" step="0.01" value={pricePackage1} onChange={(e) => setPricePackage1(e.target.value)} placeholder="120.00" className={inputClass + ' pl-10'} />
+              </div>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Pacote 2 — Limite de jogos">
+              <input type="number" value={tier2Max} onChange={(e) => setTier2Max(e.target.value)} placeholder="25" className={inputClass} />
+            </Field>
+            <Field label="Pacote 2 — Preço">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
+                <input type="number" step="0.01" value={pricePackage2} onChange={(e) => setPricePackage2(e.target.value)} placeholder="150.00" className={inputClass + ' pl-10'} />
+              </div>
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Pacote 3 — Limite de jogos">
+              <input type="number" value={tier3Max} onChange={(e) => setTier3Max(e.target.value)} placeholder="30" className={inputClass} />
+            </Field>
+            <Field label="Pacote 3 — Preço">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
+                <input type="number" step="0.01" value={pricePackage3} onChange={(e) => setPricePackage3(e.target.value)} placeholder="180.00" className={inputClass + ' pl-10'} />
+              </div>
+            </Field>
+          </div>
           <Field label="Taxa de Desbloqueio RGH" hint="Cobrada apenas quando o console ainda é original (bloqueado)">
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm font-semibold">R$</span>
@@ -175,6 +202,24 @@ const SettingsTab: FC = () => {
             </div>
           </Field>
         </div>
+      </section>
+
+      {/* Post-purchase order config */}
+      <section className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <ArrowDownUp className="w-5 h-5 text-xbox-400" />
+          <h2 className="text-lg font-bold text-white">Ordem das Telas Pós-Compra</h2>
+        </div>
+        <Field label="Sequência de telas após finalizar o pedido" hint="Telas desativadas nos toggles acima/below serão puladas automaticamente">
+          <select
+            value={postPurchaseOrder}
+            onChange={(e) => setPostPurchaseOrder(e.target.value as 'upsell_first' | 'invoice_first')}
+            className={inputClass}
+          >
+            <option value="upsell_first">Upsell {'->'} Fatura</option>
+            <option value="invoice_first">Fatura {'->'} Upsell</option>
+          </select>
+        </Field>
       </section>
 
       {/* WhatsApp + Invoice config */}
