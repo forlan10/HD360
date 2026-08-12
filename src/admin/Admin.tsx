@@ -1,18 +1,20 @@
 import { useState, type FC } from 'react';
-import { ClipboardList, Gamepad2, Package, Settings, ArrowLeft, Gamepad, LogOut } from 'lucide-react';
+import { ClipboardList, Gamepad2, Package, Settings, ArrowLeft, Gamepad, LogOut, Users } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import Login from './Login';
 import OrdersTab from './OrdersTab';
 import GamesTab from './GamesTab';
 import AccessoriesTab from './AccessoriesTab';
 import SettingsTab from './SettingsTab';
+import LeadsTab from './LeadsTab';
 
-type Tab = 'orders' | 'games' | 'accessories' | 'settings';
+type Tab = 'orders' | 'games' | 'accessories' | 'leads' | 'settings';
 
 const TABS: { value: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { value: 'orders', label: 'Pedidos', icon: ClipboardList },
   { value: 'games', label: 'Jogos', icon: Gamepad2 },
   { value: 'accessories', label: 'Upsells', icon: Package },
+  { value: 'leads', label: 'Leads', icon: Users },
   { value: 'settings', label: 'Personalização', icon: Settings },
 ];
 
@@ -83,6 +85,7 @@ const Admin: FC = () => {
           {tab === 'orders' && <OrdersTab />}
           {tab === 'games' && <GamesTab />}
           {tab === 'accessories' && <AccessoriesTab />}
+          {tab === 'leads' && <LeadsTab />}
           {tab === 'settings' && <SettingsTab />}
         </div>
       </div>

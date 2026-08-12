@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type FC } from 'react';
-import { Search, Plus, Minus, Trash2, ArrowRight, ArrowLeft, Send, Gamepad2, HardDrive, CheckCircle2, User, Phone, MapPin, X, ShoppingBag, Sparkles, Package, Loader2, AlertCircle, Receipt } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ArrowRight, ArrowLeft, Send, Gamepad2, HardDrive, CircleCheck as CheckCircle2, User, Phone, MapPin, X, ShoppingBag, Sparkles, Package, Loader as Loader2, CircleAlert as AlertCircle, Receipt } from 'lucide-react';
 import type { Game, Accessory, ConsoleModel, ConsoleStatus, SelectedGame, SelectedAccessory, StoreSettings } from '@/types';
 import { supabase } from '@/lib/supabase';
 import WhatsAppButton from '@/components/WhatsAppButton';
@@ -140,7 +140,9 @@ const Funnel: FC = () => {
     setSubmitting(true);
     setSubmitError(false);
 
-    const gameSnapshots: SelectedGame[] = selectedGames.map((g) => ({ id: g.id, name: g.name, genre: g.genre }));
+    const gameSnapshots: SelectedGame[] = selectedGames.map((g) => ({
+      id: g.id, name: g.name, genre: g.genre, status: 'pendente' as const,
+    }));
 
     const { data, error } = await supabase.from('orders').insert({
       customer_name: name.trim(),
@@ -153,14 +155,41 @@ const Funnel: FC = () => {
       total_price: pricing.total,
     }).select('id').single();
 
-    setSubmitting(false);
-
     if (error || !data) {
+      setSubmitting(false);
       setSubmitError(true);
-    } else {
-      setOrderId(data.id);
-      goToNextPostPurchaseStep();
+      return;
     }
+
+    const newOrderId = data.id;
+    setOrderId(newOrderId);
+
+    // Capture custom (manually-typed) games as suggestions for admin review
+    const customGames = selectedGames.filter((g) => g.id.startsWith('custom-'));
+    if (customGames.length > 0) {
+      const suggestionRows = customGames.map((g) => ({
+        game_name: g.name,
+        suggested_by: name.trim(),
+        order_id: newOrderId,
+        status: 'pendente' as const,
+      }));
+      await supabase.from('game_suggestions').insert(suggestionRows);
+    }
+
+    // Auto-create a lead from the order data
+    const interestsText = `${model} • ${selectedGames.length} jogos`;
+    await supabase.from('leads').insert({
+      name: name.trim(),
+      phone: phone.trim(),
+      neighborhood: neighborhood.trim(),
+      interests: interestsText,
+      status: 'comprou' as const,
+      contact_date: new Date().toISOString().slice(0, 10),
+      order_id: newOrderId,
+    });
+
+    setSubmitting(false);
+    goToNextPostPurchaseStep();
   };
 
   // Add selected accessories to the already-created order

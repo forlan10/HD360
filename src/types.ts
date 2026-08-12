@@ -19,10 +19,36 @@ export type ConsoleStatus = 'desbloqueado' | 'bloqueado' | 'Nao sei';
 
 export type OrderStatus = 'novo' | 'em_andamento' | 'concluido' | 'cancelado';
 
+export type GameProductionStatus = 'pendente' | 'baixado' | 'convertido' | 'no_hd';
+
+export const GAME_STATUS_ORDER: GameProductionStatus[] = ['pendente', 'baixado', 'convertido', 'no_hd'];
+
+export const GAME_STATUS_LABELS: Record<GameProductionStatus, string> = {
+  pendente: 'Falta baixar',
+  baixado: 'Baixado, falta converter',
+  convertido: 'Formato GOD',
+  no_hd: 'Transferido para o HD',
+};
+
+export const GAME_STATUS_SHORT: Record<GameProductionStatus, string> = {
+  pendente: 'Pendente',
+  baixado: 'Baixado',
+  convertido: 'Convertido',
+  no_hd: 'No HD',
+};
+
+export const GAME_STATUS_COLORS: Record<GameProductionStatus, string> = {
+  pendente: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  baixado: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+  convertido: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+  no_hd: 'bg-xbox-500/15 text-xbox-400 border-xbox-500/30',
+};
+
 export interface SelectedGame {
   id: string;
   name: string;
   genre: string;
+  status?: GameProductionStatus;
 }
 
 export interface SelectedAccessory {
@@ -74,4 +100,45 @@ export interface StoreSettings {
   tier_2_max: number;
   tier_3_max: number;
   updated_at?: string;
+}
+
+export type SuggestionStatus = 'pendente' | 'adicionado' | 'descartado';
+
+export interface GameSuggestion {
+  id: string;
+  game_name: string;
+  game_name_normalized: string;
+  suggested_by: string | null;
+  order_id: string | null;
+  status: SuggestionStatus;
+  created_at: string;
+}
+
+export type LeadStatus = 'comprou' | 'problema_entrega' | 'nao_pediu' | 'nao_respondeu';
+
+export const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
+  comprou: 'Comprou',
+  problema_entrega: 'Deu problema na entrega',
+  nao_pediu: 'Não pediu',
+  nao_respondeu: 'Não respondeu',
+};
+
+export const LEAD_STATUS_COLORS: Record<LeadStatus, string> = {
+  comprou: 'bg-xbox-500/15 text-xbox-400 border-xbox-500/30',
+  problema_entrega: 'bg-red-500/15 text-red-400 border-red-500/30',
+  nao_pediu: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+  nao_respondeu: 'bg-neutral-500/15 text-neutral-400 border-neutral-500/30',
+};
+
+export interface Lead {
+  id: string;
+  name: string;
+  phone: string | null;
+  neighborhood: string | null;
+  interests: string | null;
+  status: LeadStatus;
+  contact_date: string;
+  order_id: string | null;
+  created_at: string;
+  updated_at: string;
 }

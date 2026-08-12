@@ -1,6 +1,6 @@
-import { useState, useEffect, type FC } from 'react';
-import { Gamepad2, Search, Plus, Pencil, Trash2, Upload, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import type { Game } from '@/types';
+import { useState, useEffect, useMemo, type FC } from 'react';
+import { Gamepad2, Search, Plus, Pencil, Trash2, Upload, Loader as Loader2, CircleCheck as CheckCircle2, CircleAlert as AlertCircle, Lightbulb, Package } from 'lucide-react';
+import type { Game, GameSuggestion } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { LoadingState, ErrorState, EmptyState, Modal, Field, inputClass } from './shared';
 
@@ -12,6 +12,12 @@ const GamesTab: FC = () => {
   const [editing, setEditing] = useState<Game | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [view, setView] = useState<'catalog' | 'suggestions'>('catalog');
+
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState<GameSuggestion[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(true);
+  const [suggestionsError, setSuggestionsError] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -22,7 +28,16 @@ const GamesTab: FC = () => {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  const loadSuggestions = async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError(false);
+    const { data, error } = await supabase.from('game_suggestions').select('*').eq('status', 'pendente').order('created_at', { ascending: false });
+    if (error) setSuggestionsError(true);
+    else setSuggestions(data || []);
+    setSuggestionsLoading(false);
+  };
+
+  useEffect(() => { load(); loadSuggestions(); }, []);
 
   const deleteGame = async (id: string) => {
     setGames((prev) => prev.filter((g) => g.id !== id));
@@ -34,51 +49,172 @@ const GamesTab: FC = () => {
     g.genre.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (loading) return <LoadingState text="Carregando jogos..." />;
-  if (error) return <ErrorState text="Erro ao carregar jogos." onRetry={load} />;
+  // Group suggestions by normalized name for anti-duplication display
+  const groupedSuggestions = useMemo(() => {
+    const map = new Map<string, { game_name: string; count: number; items: GameSuggestion[] }>();
+    suggestions.forEach((s) => {
+      const key = s.game_name_normalized;
+      if (!map.has(key)) {
+        map.set(key, { game_name: s.game_name, count: 0, items: [] });
+      }
+      const entry = map.get(key)!;
+      entry.count++;
+      entry.items.push(s);
+    });
+    return Array.from(map.entries()).map(([key, val]) => ({
+      normalized: key,
+      game_name: val.game_name,
+      count: val.count,
+      items: val.items,
+    }));
+  }, [suggestions]);
+
+  const discardSuggestion = async (group: { items: GameSuggestion[] }) => {
+    const ids = group.items.map((i) => i.id);
+    setSuggestions((prev) => prev.filter((s) => !ids.includes(s.id)));
+    await supabase.from('game_suggestions').update({ status: 'descartado' }).in('id', ids);
+  };
+
+  const acceptSuggestion = (group: { game_name: string; items: GameSuggestion[] }) => {
+    // Open the game form pre-filled with the suggested name
+    setEditing({ id: '', name: group.game_name, genre: '', year: null } as Game);
+    setShowForm(true);
+    // Mark suggestions as added after form save — handled in onSaved callback
+    // We store the pending ids on the form via a closure
+    (window as unknown as Record<string, unknown>).__pendingSuggestionIds = group.items.map((i) => i.id);
+  };
+
+  const onGameFormSaved = async () => {
+    setShowForm(false);
+    const pendingIds = (window as unknown as Record<string, unknown>).__pendingSuggestionIds as string[] | undefined;
+    if (pendingIds && pendingIds.length > 0) {
+      setSuggestions((prev) => prev.filter((s) => !pendingIds.includes(s.id)));
+      await supabase.from('game_suggestions').update({ status: 'adicionado' }).in('id', pendingIds);
+      delete (window as unknown as Record<string, unknown>).__pendingSuggestionIds;
+    }
+    load();
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar jogo..."
-            className="w-full bg-neutral-900 border border-neutral-800 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-xbox-500 transition-colors" />
-        </div>
-        <div className="flex gap-2">
-          <button onClick={() => setShowImport(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 text-sm font-semibold hover:bg-neutral-700 hover:text-white border border-neutral-700 transition-all active:scale-95">
-            <Upload className="w-4 h-4" /> Importar JSON
-          </button>
-          <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-xbox-500 text-white text-sm font-semibold hover:bg-xbox-400 transition-all active:scale-95">
-            <Plus className="w-4 h-4" /> Novo Jogo
-          </button>
-        </div>
+      {/* Sub-tab switcher */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setView('catalog')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${view === 'catalog' ? 'bg-xbox-500 text-white' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'}`}
+        >
+          <Gamepad2 className="w-4 h-4" /> Catálogo
+        </button>
+        <button
+          onClick={() => setView('suggestions')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${view === 'suggestions' ? 'bg-xbox-500 text-white' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'}`}
+        >
+          <Lightbulb className="w-4 h-4" /> Sugestões
+          {suggestions.length > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-xbox-500/30 text-xbox-200 font-bold">{suggestions.length}</span>
+          )}
+        </button>
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState icon={Gamepad2} text={search ? 'Nenhum jogo encontrado.' : 'Nenhum jogo cadastrado.'} />
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((game) => (
-            <div key={game.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-neutral-900/80 border border-neutral-800">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-white truncate">{game.name}</p>
-                <p className="text-xs text-neutral-500">{game.genre}{game.year ? ` • ${game.year}` : ''}</p>
-              </div>
-              <div className="flex gap-1.5 shrink-0">
-                <button onClick={() => { setEditing(game); setShowForm(true); }} className="w-8 h-8 rounded-lg bg-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center transition-all">
-                  <Pencil className="w-4 h-4" />
-                </button>
-                <button onClick={() => deleteGame(game.id)} className="w-8 h-8 rounded-lg bg-neutral-800 text-neutral-400 hover:text-red-400 flex items-center justify-center transition-all">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
+      {view === 'catalog' && (
+        <>
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar jogo..."
+                className="w-full bg-neutral-900 border border-neutral-800 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-xbox-500 transition-colors" />
             </div>
-          ))}
+            <div className="flex gap-2">
+              <button onClick={() => setShowImport(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 text-sm font-semibold hover:bg-neutral-700 hover:text-white border border-neutral-700 transition-all active:scale-95">
+                <Upload className="w-4 h-4" /> Importar JSON
+              </button>
+              <button onClick={() => { setEditing(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-xbox-500 text-white text-sm font-semibold hover:bg-xbox-400 transition-all active:scale-95">
+                <Plus className="w-4 h-4" /> Novo Jogo
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <LoadingState text="Carregando jogos..." />
+          ) : error ? (
+            <ErrorState text="Erro ao carregar jogos." onRetry={load} />
+          ) : filtered.length === 0 ? (
+            <EmptyState icon={Gamepad2} text={search ? 'Nenhum jogo encontrado.' : 'Nenhum jogo cadastrado.'} />
+          ) : (
+            <div className="space-y-2">
+              {filtered.map((game) => (
+                <div key={game.id} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-neutral-900/80 border border-neutral-800">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white truncate">{game.name}</p>
+                    <p className="text-xs text-neutral-500">{game.genre}{game.year ? ` • ${game.year}` : ''}</p>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button onClick={() => { setEditing(game); setShowForm(true); }} className="w-8 h-8 rounded-lg bg-neutral-800 text-neutral-400 hover:text-white flex items-center justify-center transition-all">
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => deleteGame(game.id)} className="w-8 h-8 rounded-lg bg-neutral-800 text-neutral-400 hover:text-red-400 flex items-center justify-center transition-all">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {view === 'suggestions' && (
+        <div>
+          <div className="mb-4">
+            <h3 className="text-sm text-neutral-400">
+              {suggestionsLoading ? 'Carregando sugestões...' : `${groupedSuggestions.length} jogo(s) sugerido(s) pelos clientes`}
+            </h3>
+          </div>
+
+          {suggestionsLoading ? (
+            <LoadingState text="Carregando sugestões..." />
+          ) : suggestionsError ? (
+            <ErrorState text="Erro ao carregar sugestões." onRetry={loadSuggestions} />
+          ) : groupedSuggestions.length === 0 ? (
+            <EmptyState icon={Lightbulb} text="Nenhuma sugestão pendente no momento." />
+          ) : (
+            <div className="space-y-2">
+              {groupedSuggestions.map((group) => (
+                <div key={group.normalized} className="flex items-center justify-between gap-3 p-3 rounded-xl bg-neutral-900/80 border border-neutral-800">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white truncate">{group.game_name}</p>
+                    <p className="text-xs text-neutral-500">
+                      {group.count > 1 ? (
+                        <span className="text-xbox-400 font-semibold">Sugerido {group.count} vezes</span>
+                      ) : (
+                        group.items[0]?.suggested_by ? `Por ${group.items[0].suggested_by}` : 'Sugestão de cliente'
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    <button
+                      onClick={() => acceptSuggestion(group)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-xbox-500 text-white text-xs font-semibold hover:bg-xbox-400 transition-all active:scale-95"
+                      title="Adicionar ao catálogo"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Adicionar
+                    </button>
+                    <button
+                      onClick={() => discardSuggestion(group)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-neutral-800 text-neutral-400 hover:text-red-400 hover:bg-red-500/10 text-xs font-semibold border border-neutral-700 transition-all active:scale-95"
+                      title="Descartar sugestão"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Descartar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {showForm && <GameForm game={editing} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load(); }} />}
+      {showForm && <GameForm game={editing} onClose={() => { setShowForm(false); delete (window as unknown as Record<string, unknown>).__pendingSuggestionIds; }} onSaved={onGameFormSaved} />}
       {showImport && <ImportJson onClose={() => setShowImport(false)} onDone={() => { setShowImport(false); load(); }} />}
     </div>
   );
@@ -95,7 +231,7 @@ const GameForm: FC<{ game: Game | null; onClose: () => void; onSaved: () => void
     if (!name.trim() || !genre.trim()) return;
     setSaving(true);
     const payload = { name: name.trim(), genre: genre.trim(), year: year ? parseInt(year) : null };
-    if (game) {
+    if (game?.id) {
       await supabase.from('games').update(payload).eq('id', game.id);
     } else {
       await supabase.from('games').insert(payload);
@@ -105,7 +241,7 @@ const GameForm: FC<{ game: Game | null; onClose: () => void; onSaved: () => void
   };
 
   return (
-    <Modal title={game ? 'Editar Jogo' : 'Novo Jogo'} onClose={onClose}>
+    <Modal title={game?.id ? 'Editar Jogo' : 'Novo Jogo'} onClose={onClose}>
       <div className="space-y-4">
         <Field label="Nome do Jogo">
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Halo 3" className={inputClass} />
@@ -118,7 +254,7 @@ const GameForm: FC<{ game: Game | null; onClose: () => void; onSaved: () => void
         </Field>
         <button onClick={save} disabled={saving || !name.trim() || !genre.trim()}
           className="w-full py-3 rounded-xl bg-xbox-500 text-white font-semibold hover:bg-xbox-400 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {game ? 'Salvar' : 'Criar'}
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} {game?.id ? 'Salvar' : 'Criar'}
         </button>
       </div>
     </Modal>
