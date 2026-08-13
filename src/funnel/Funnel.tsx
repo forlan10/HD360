@@ -3,6 +3,7 @@ import { Search, Plus, Minus, Trash2, ArrowRight, ArrowLeft, Send, Gamepad2, Har
 import type { Game, Accessory, ConsoleModel, ConsoleStatus, SelectedGame, SelectedAccessory, StoreSettings } from '@/types';
 import { supabase } from '@/lib/supabase';
 import WhatsAppButton from '@/components/WhatsAppButton';
+import TrackOrder from '@/components/TrackOrder';
 
 type Step = 'builder' | 'contact' | 'upsell' | 'invoice' | 'success';
 
@@ -39,6 +40,7 @@ const Funnel: FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [showTrackModal, setShowTrackModal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -295,6 +297,14 @@ const Funnel: FC = () => {
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold text-white text-glow leading-tight">{heroTitle}</h1>
           <p className="text-neutral-400 mt-2 text-sm sm:text-base">{heroSubtitle}</p>
+          {step === 'builder' && (
+            <button
+              onClick={() => setShowTrackModal(true)}
+              className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-neutral-800/80 text-neutral-200 text-sm font-semibold hover:bg-neutral-700 border border-neutral-700 transition-all active:scale-95"
+            >
+              <Search className="w-4 h-4" /> Acompanhar meu Pedido
+            </button>
+          )}
         </header>
 
         {/* Loading state */}
@@ -630,21 +640,17 @@ const Funnel: FC = () => {
           </div>
         )}
 
-        {/* STEP: Success */}
-        {step === 'success' && (
-          <div className="flex flex-col items-center justify-center text-center py-12 animate-slide-up">
-            <div className="w-20 h-20 rounded-full bg-xbox-500/15 border-2 border-xbox-500 flex items-center justify-center mb-6 animate-pulse-glow">
-              <CheckCircle2 className="w-10 h-10 text-xbox-400" />
+        {/* STEP: Success — redirects to order tracking */}
+        {step === 'success' && orderId && (
+          <div className="animate-slide-up">
+            <div className="flex flex-col items-center text-center py-4 mb-6">
+              <div className="w-16 h-16 rounded-full bg-xbox-500/15 border-2 border-xbox-500 flex items-center justify-center mb-4 animate-pulse-glow">
+                <CheckCircle2 className="w-8 h-8 text-xbox-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-1">Pedido Confirmado!</h2>
+              <p className="text-sm text-neutral-400 max-w-sm">Acompanhe o status da montagem do seu HD abaixo.</p>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-3">Pedido Recebido!</h2>
-            <p className="text-neutral-400 text-sm max-w-sm mb-2">
-              Entraremos em contato no seu WhatsApp <span className="text-white font-semibold">{phone}</span> para alinhar a entrega.
-            </p>
-            <p className="text-neutral-500 text-xs mb-8">Confirme seu número e fique atento às mensagens.</p>
-
-            <button onClick={restart} className="px-6 py-3 rounded-xl bg-xbox-500 text-white font-semibold hover:bg-xbox-400 transition-all active:scale-95">
-              Fazer Novo Pedido
-            </button>
+            <TrackOrder initialOrderId={orderId} inline onNewOrder={restart} />
           </div>
         )}
 
@@ -652,6 +658,10 @@ const Funnel: FC = () => {
           <p className="text-xs text-neutral-600">Seu pedido será processado e entraremos em contato via WhatsApp.</p>
         </footer>
       </div>
+
+      {showTrackModal && (
+        <TrackOrder onClose={() => setShowTrackModal(false)} />
+      )}
     </div>
   );
 };
