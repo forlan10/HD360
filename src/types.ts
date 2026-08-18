@@ -142,3 +142,11 @@ export interface Lead {
   created_at: string;
   updated_at: string;
 }
+
+export interface MasterLibraryEntry {
+  id: string;
+  game_name: string;
+  game_name_normalized: string;
+  game_id: string | null;
+  created_at?: string;
+}

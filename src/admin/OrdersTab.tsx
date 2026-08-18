@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, type FC } from 'react';
-import { ClipboardList, Search, Phone, MapPin, HardDrive, CircleCheck as CheckCircle2, ShoppingBag, Sparkles, Trash2, X, ChevronRight } from 'lucide-react';
+import { ClipboardList, Search, Phone, MapPin, HardDrive, CircleCheck as CheckCircle2, ShoppingBag, Sparkles, Trash2, X, ChevronRight, Download, AlertCircle } from 'lucide-react';
 import type { Order, OrderStatus, SelectedGame, GameProductionStatus } from '@/types';
 import { GAME_STATUS_ORDER, GAME_STATUS_LABELS, GAME_STATUS_SHORT, GAME_STATUS_COLORS } from '@/types';
 import { supabase } from '@/lib/supabase';
@@ -16,12 +16,15 @@ const statusBadge = (s: string) => ORDER_STATUS.find((o) => o.value === s) || OR
 const statusLabel = (s: string) =>
   s === 'desbloqueado' ? 'Desbloqueado' : s === 'bloqueado' ? 'Original' : 'Não sei';
 
+type OrderView = 'all' | 'prioritarios';
+
 const OrdersTab: FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [view, setView] = useState<OrderView>('all');
 
   const load = async () => {
     setLoading(true);
@@ -54,7 +57,6 @@ const OrdersTab: FC = () => {
       g.id === gameId ? { ...g, status: newStatus } : g
     );
 
-    // Optimistic update
     setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, selected_games: updatedGames } : o)));
     if (selectedOrder?.id === orderId) setSelectedOrder((prev) => prev ? { ...prev, selected_games: updatedGames } : null);
 
@@ -67,47 +69,135 @@ const OrdersTab: FC = () => {
     o.neighborhood.toLowerCase().includes(search.toLowerCase())
   );
 
+  // For "Baixar Prioritários" view: only orders with at least one game not at no_hd
+  const prioritarios = useMemo(() => {
+    return orders
+      .filter((o) => o.status !== 'cancelado' && o.status !== 'concluido')
+      .map((o) => ({
+        order: o,
+        pendingGames: o.selected_games.filter((g) => (g.status || 'pendente') !== 'no_hd'),
+      }))
+      .filter(({ pendingGames }) => pendingGames.length > 0);
+  }, [orders]);
+
   if (loading) return <LoadingState text="Carregando pedidos..." />;
   if (error) return <ErrorState text="Erro ao carregar pedidos." onRetry={load} />;
 
   return (
     <>
-      <div className="space-y-3">
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, telefone ou bairro..."
-            className="w-full bg-neutral-900 border border-neutral-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-xbox-500 transition-colors" />
-        </div>
-
-        {filtered.length === 0 ? (
-          <EmptyState icon={ClipboardList} text={search ? 'Nenhum pedido encontrado.' : 'Nenhum pedido recebido ainda.'} />
-        ) : (
-          filtered.map((order) => (
-            <div key={order.id} className="bg-neutral-900/80 border border-neutral-800 rounded-2xl overflow-hidden">
-              <button onClick={() => setSelectedOrder(order)} className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-neutral-800/30 transition-colors">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-bold text-white truncate">{order.customer_name}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${statusBadge(order.status).color}`}>
-                      {statusBadge(order.status).label}
-                    </span>
-                  </div>
-                  <p className="text-xs text-neutral-500">{order.customer_phone} • {order.neighborhood} • {order.console_model}</p>
-                  <p className="text-xs text-neutral-600 mt-0.5">{new Date(order.created_at).toLocaleString('pt-BR')}</p>
-                </div>
-                <div className="text-right shrink-0 flex items-center gap-2">
-                  <div>
-                    <p className="text-xs text-neutral-500">{order.selected_games.length} jogos</p>
-                    <p className="text-xs text-neutral-500">{order.selected_accessories.length} acessórios</p>
-                    {order.total_price != null && <p className="text-sm font-bold text-xbox-400 mt-0.5">R$ {order.total_price.toFixed(2).replace('.', ',')}</p>}
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-neutral-600" />
-                </div>
-              </button>
-            </div>
-          ))
-        )}
+      {/* Sub-tab switcher */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setView('all')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${view === 'all' ? 'bg-xbox-500 text-white' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'}`}
+        >
+          <ClipboardList className="w-4 h-4" /> Todos os Pedidos
+        </button>
+        <button
+          onClick={() => setView('prioritarios')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${view === 'prioritarios' ? 'bg-xbox-500 text-white' : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'}`}
+        >
+          <Download className="w-4 h-4" /> Baixar Prioritários
+          {prioritarios.length > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-xbox-500/30 text-xbox-200 font-bold">{prioritarios.length}</span>
+          )}
+        </button>
       </div>
+
+      {view === 'all' && (
+        <div className="space-y-3">
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, telefone ou bairro..."
+              className="w-full bg-neutral-900 border border-neutral-800 rounded-xl pl-11 pr-4 py-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-xbox-500 transition-colors" />
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState icon={ClipboardList} text={search ? 'Nenhum pedido encontrado.' : 'Nenhum pedido recebido ainda.'} />
+          ) : (
+            filtered.map((order) => {
+              const pendingCount = order.selected_games.filter((g) => (g.status || 'pendente') !== 'no_hd').length;
+              const readyCount = order.selected_games.length - pendingCount;
+              return (
+                <div key={order.id} className="bg-neutral-900/80 border border-neutral-800 rounded-2xl overflow-hidden">
+                  <button onClick={() => setSelectedOrder(order)} className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-neutral-800/30 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-bold text-white truncate">{order.customer_name}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${statusBadge(order.status).color}`}>
+                          {statusBadge(order.status).label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-500">{order.customer_phone} • {order.neighborhood} • {order.console_model}</p>
+                      <p className="text-xs text-neutral-600 mt-0.5">{new Date(order.created_at).toLocaleString('pt-BR')}</p>
+                      {pendingCount > 0 && order.status !== 'cancelado' && order.status !== 'concluido' && (
+                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-semibold">
+                          <Download className="w-3 h-3" />
+                          {pendingCount === order.selected_games.length
+                            ? `Baixar ${pendingCount} jogo(s)`
+                            : `Baixar apenas ${pendingCount} jogo(s) para concluir`}
+                        </div>
+                      )}
+                      {pendingCount === 0 && order.selected_games.length > 0 && order.status !== 'cancelado' && (
+                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-xbox-500/10 border border-xbox-500/30 text-xbox-400 text-xs font-semibold">
+                          <CheckCircle2 className="w-3 h-3" /> Todos os jogos prontos
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0 flex items-center gap-2">
+                      <div>
+                        <p className="text-xs text-neutral-500">{order.selected_games.length} jogos</p>
+                        <p className="text-xs text-neutral-500">{readyCount}/{order.selected_games.length} prontos</p>
+                        {order.total_price != null && <p className="text-sm font-bold text-xbox-400 mt-0.5">R$ {order.total_price.toFixed(2).replace('.', ',')}</p>}
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-neutral-600" />
+                    </div>
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {view === 'prioritarios' && (
+        <div className="space-y-3">
+          {prioritarios.length === 0 ? (
+            <EmptyState icon={CheckCircle2} text="Nenhum jogo pendente para baixar. Todos os pedidos estão com o HD pronto!" />
+          ) : (
+            prioritarios.map(({ order, pendingGames }) => (
+              <div key={order.id} className="bg-neutral-900/80 border border-neutral-800 rounded-2xl overflow-hidden">
+                <button onClick={() => setSelectedOrder(order)} className="w-full p-4 text-left hover:bg-neutral-800/30 transition-colors">
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-white truncate">{order.customer_name}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${statusBadge(order.status).color}`}>
+                        {statusBadge(order.status).label}
+                      </span>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-neutral-600 shrink-0" />
+                  </div>
+                  <p className="text-xs text-neutral-500 mb-2">{order.customer_phone} • {order.neighborhood}</p>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-semibold mb-3">
+                    <Download className="w-3 h-3" /> Baixar {pendingGames.length} jogo(s)
+                  </div>
+                  <div className="space-y-1.5">
+                    {pendingGames.map((game, i) => (
+                      <div key={game.id || i} className="flex items-center gap-2 text-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 shrink-0" />
+                        <span className="text-neutral-300 truncate">{game.name}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md border font-semibold shrink-0 ${GAME_STATUS_COLORS[(game.status || 'pendente') as GameProductionStatus]}`}>
+                          {GAME_STATUS_SHORT[(game.status || 'pendente') as GameProductionStatus]}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
 
       {selectedOrder && (
         <OrderDrawer
@@ -146,6 +236,8 @@ const OrderDrawer: FC<{
       convertido: (counts.convertido / total) * 100,
       no_hd: (counts.no_hd / total) * 100,
       total: games.length,
+      pendingCount: counts.pendente + counts.baixado + counts.convertido,
+      readyCount: counts.no_hd,
     };
   }, [games]);
 
@@ -212,7 +304,27 @@ const OrderDrawer: FC<{
 
           {/* Production dashboard */}
           <section className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
-            <h4 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Progresso de Montagem do HD</h4>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Progresso de Montagem do HD</h4>
+              <span className="text-xs font-bold text-xbox-400">{stats.readyCount}/{stats.total} prontos</span>
+            </div>
+
+            {/* Effort summary */}
+            {stats.pendingCount > 0 ? (
+              <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
+                <Download className="w-4 h-4 text-yellow-400 shrink-0" />
+                <p className="text-sm text-yellow-400 font-semibold">
+                  {stats.pendingCount === stats.total
+                    ? `Baixar ${stats.pendingCount} jogo(s) para concluir`
+                    : `Baixar apenas ${stats.pendingCount} jogo(s) para concluir`}
+                </p>
+              </div>
+            ) : (
+              <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-xbox-500/10 border border-xbox-500/30">
+                <CheckCircle2 className="w-4 h-4 text-xbox-400 shrink-0" />
+                <p className="text-sm text-xbox-400 font-semibold">Todos os jogos já estão no HD!</p>
+              </div>
+            )}
 
             {/* Overall progress bar */}
             <div className="mb-4">

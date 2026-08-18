@@ -1,21 +1,7 @@
 import { useState, useEffect, useMemo, type FC } from 'react';
-import { Search, X, Loader as Loader2, CircleAlert as AlertCircle, HardDrive, Package, RotateCcw } from 'lucide-react';
-import type { Order, GameProductionStatus } from '@/types';
+import { Search, X, Loader as Loader2, CircleAlert as AlertCircle, HardDrive, Package, RotateCcw, CircleCheck as CheckCircle2, Clock } from 'lucide-react';
+import type { Order } from '@/types';
 import { supabase } from '@/lib/supabase';
-
-const STATUS_WEIGHTS: Record<GameProductionStatus, number> = {
-  pendente: 0,
-  baixado: 33,
-  convertido: 66,
-  no_hd: 100,
-};
-
-const STATUS_BARS = [
-  { key: 'pendente' as const, label: 'Pendente', color: 'bg-yellow-500', text: 'text-yellow-400' },
-  { key: 'baixado' as const, label: 'Baixado', color: 'bg-blue-500', text: 'text-blue-400' },
-  { key: 'convertido' as const, label: 'Convertido', color: 'bg-purple-500', text: 'text-purple-400' },
-  { key: 'no_hd' as const, label: 'No HD', color: 'bg-xbox-500', text: 'text-xbox-400' },
-];
 
 const TrackOrder: FC<{
   initialOrderId?: string | null;
@@ -72,21 +58,9 @@ const TrackOrder: FC<{
     if (!order || !order.selected_games || order.selected_games.length === 0) return null;
     const games = order.selected_games;
     const total = games.length;
-    const counts = { pendente: 0, baixado: 0, convertido: 0, no_hd: 0 };
-    let weightedSum = 0;
-    games.forEach((g) => {
-      const s = (g.status || 'pendente') as GameProductionStatus;
-      counts[s]++;
-      weightedSum += STATUS_WEIGHTS[s];
-    });
-    return {
-      overall: Math.round((weightedSum / total) * 10) / 10,
-      pendente: Math.round((counts.pendente / total) * 100),
-      baixado: Math.round((counts.baixado / total) * 100),
-      convertido: Math.round((counts.convertido / total) * 100),
-      no_hd: Math.round((counts.no_hd / total) * 100),
-      total,
-    };
+    const readyCount = games.filter((g) => (g.status || 'pendente') === 'no_hd').length;
+    const overall = Math.round((readyCount / total) * 100);
+    return { overall, readyCount, total };
   }, [order]);
 
   const resetSearch = () => {
@@ -130,29 +104,40 @@ const TrackOrder: FC<{
             <p className="text-xs text-neutral-500 mt-1">{order.console_model} • {stats.total} jogos</p>
           </div>
 
+          {/* Overall progress bar — the only bar */}
           <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-white">Conclusão Geral</span>
-              <span className="text-lg font-bold text-xbox-400">{stats.overall.toFixed(0)}%</span>
+              <span className="text-lg font-bold text-xbox-400">{stats.overall}%</span>
             </div>
             <div className="h-4 rounded-full bg-neutral-800 overflow-hidden">
               <div className="h-full bg-gradient-to-r from-xbox-600 to-xbox-400 rounded-full transition-all duration-700" style={{ width: `${stats.overall}%` }} />
             </div>
+            <p className="text-xs text-neutral-500 mt-2">
+              {stats.readyCount} de {stats.total} jogos prontos
+            </p>
           </div>
 
-          <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-3">
-            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Etapas da Montagem</h3>
-            {STATUS_BARS.map((bar) => {
-              const pct = stats[bar.key];
+          {/* Game list with simplified status */}
+          <div className="bg-neutral-900/60 border border-neutral-800 rounded-2xl p-4 space-y-2">
+            <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Jogos do Pedido</h3>
+            {order.selected_games.map((game, i) => {
+              const isReady = (game.status || 'pendente') === 'no_hd';
               return (
-                <div key={bar.key}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className={`text-xs font-semibold ${bar.text}`}>{bar.label}</span>
-                    <span className="text-xs text-neutral-500">{pct}%</span>
+                <div key={game.id || i} className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-neutral-800/50 border border-neutral-800">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-neutral-700 text-neutral-400 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                    <p className="text-sm font-semibold text-white truncate">{game.name}</p>
                   </div>
-                  <div className="h-2 rounded-full bg-neutral-800 overflow-hidden">
-                    <div className={`${bar.color} h-full rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
-                  </div>
+                  {isReady ? (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-xbox-400 px-2.5 py-1 rounded-lg bg-xbox-500/15 border border-xbox-500/30">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Pronto
+                    </span>
+                  ) : (
+                    <span className="shrink-0 inline-flex items-center gap-1.5 text-xs font-semibold text-yellow-400 px-2.5 py-1 rounded-lg bg-yellow-500/15 border border-yellow-500/30">
+                      <Clock className="w-3.5 h-3.5" /> Em andamento
+                    </span>
+                  )}
                 </div>
               );
             })}
