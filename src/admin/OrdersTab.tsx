@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, type FC } from 'react';
-import { ClipboardList, Search, Phone, MapPin, HardDrive, CircleCheck as CheckCircle2, ShoppingBag, Sparkles, Trash2, X, ChevronRight, Download, AlertCircle } from 'lucide-react';
-import type { Order, OrderStatus, SelectedGame, GameProductionStatus } from '@/types';
+import { ClipboardList, Search, Phone, MapPin, HardDrive, CircleCheck as CheckCircle2, ShoppingBag, Sparkles, Trash2, X, ChevronRight, Download, CircleAlert as AlertCircle, CloudOff } from 'lucide-react';
+import type { Order, OrderStatus, SelectedGame, GameProductionStatus, MasterLibraryEntry } from '@/types';
 import { GAME_STATUS_ORDER, GAME_STATUS_LABELS, GAME_STATUS_SHORT, GAME_STATUS_COLORS } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { LoadingState, ErrorState, EmptyState } from './shared';
@@ -20,6 +20,7 @@ type OrderView = 'all' | 'prioritarios';
 
 const OrdersTab: FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [library, setLibrary] = useState<MasterLibraryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [search, setSearch] = useState('');
@@ -29,13 +30,21 @@ const OrdersTab: FC = () => {
   const load = async () => {
     setLoading(true);
     setError(false);
-    const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-    if (error) setError(true);
-    else setOrders(data || []);
+    const [ordersRes, libRes] = await Promise.all([
+      supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      supabase.from('master_library').select('*'),
+    ]);
+    if (ordersRes.error || libRes.error) setError(true);
+    else {
+      setOrders(ordersRes.data || []);
+      setLibrary(libRes.data || []);
+    }
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
+
+  const libraryNames = useMemo(() => new Set(library.map((e) => e.game_name_normalized)), [library]);
 
   const updateStatus = async (id: string, status: OrderStatus) => {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status } : o)));
@@ -202,6 +211,7 @@ const OrdersTab: FC = () => {
       {selectedOrder && (
         <OrderDrawer
           order={selectedOrder}
+          libraryNames={libraryNames}
           onClose={() => setSelectedOrder(null)}
           onStatusChange={(status) => updateStatus(selectedOrder.id, status)}
           onGameStatusChange={(gameId, status) => updateGameStatus(selectedOrder.id, gameId, status)}
@@ -216,12 +226,14 @@ const OrdersTab: FC = () => {
 
 const OrderDrawer: FC<{
   order: Order;
+  libraryNames: Set<string>;
   onClose: () => void;
   onStatusChange: (status: OrderStatus) => void;
   onGameStatusChange: (gameId: string, status: GameProductionStatus) => void;
   onDelete: () => void;
-}> = ({ order, onClose, onStatusChange, onGameStatusChange, onDelete }) => {
+}> = ({ order, libraryNames, onClose, onStatusChange, onGameStatusChange, onDelete }) => {
   const games: SelectedGame[] = order.selected_games;
+  const isInLibrary = (gameName: string) => libraryNames.has(gameName.toLowerCase().trim());
 
   const stats = useMemo(() => {
     const total = games.length || 1;
@@ -376,7 +388,14 @@ const OrderDrawer: FC<{
                       <span className="shrink-0 w-6 h-6 rounded-full bg-xbox-500/20 text-xbox-400 text-xs font-bold flex items-center justify-center">{index + 1}</span>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-white truncate">{game.name}</p>
-                        <p className="text-xs text-neutral-500">{game.genre}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-xs text-neutral-500">{game.genre}</p>
+                          {!isInLibrary(game.name) && (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md border font-semibold bg-orange-500/10 text-orange-400 border-orange-500/30 whitespace-nowrap">
+                              <CloudOff className="w-3 h-3" /> Precisa baixar
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

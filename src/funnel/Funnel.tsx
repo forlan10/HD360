@@ -25,7 +25,6 @@ const Funnel: FC = () => {
   const [model, setModel] = useState<ConsoleModel | null>(null);
   const [status, setStatus] = useState<ConsoleStatus | null>(null);
   const [search, setSearch] = useState('');
-  const [customGameName, setCustomGameName] = useState('');
   const [selectedGames, setSelectedGames] = useState<Game[]>([]);
   const [selectedAccessories, setSelectedAccessories] = useState<Accessory[]>([]);
   const [name, setName] = useState('');
@@ -80,15 +79,17 @@ const Funnel: FC = () => {
   const removeGame = (id: string) => setSelectedGames((prev) => prev.filter((g) => g.id !== id));
   const clearGames = () => setSelectedGames([]);
 
-  const addCustomGame = () => {
-    const trimmed = customGameName.trim();
+  const addCustomGame = (name: string) => {
+    const trimmed = name.trim();
     if (!trimmed) return;
     if (selectedGames.length >= MAX_GAMES) return;
     const customId = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const customGame: Game = { id: customId, name: trimmed, genre: 'Personalizado', year: null };
     setSelectedGames((prev) => [...prev, customGame]);
-    setCustomGameName('');
   };
+
+  const searchTrimmed = search.trim();
+  const showAddCustom = searchTrimmed.length > 0 && filteredGames.length === 0 && selectedGames.length < MAX_GAMES;
 
   const toggleAccessory = (acc: Accessory) => {
     setSelectedAccessories((prev) =>
@@ -380,29 +381,6 @@ const Funnel: FC = () => {
                 )}
               </div>
 
-              {/* Custom game input */}
-              <div className="mt-3 pt-3 border-t border-neutral-800">
-                <p className="text-xs text-neutral-500 mb-2">Não encontrou seu jogo? Digite o nome aqui:</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={customGameName}
-                    onChange={(e) => setCustomGameName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomGame(); } }}
-                    placeholder="Ex: Skate 3"
-                    disabled={selectedGames.length >= MAX_GAMES}
-                    className="flex-1 bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-xbox-500 transition-colors disabled:opacity-50"
-                  />
-                  <button
-                    onClick={addCustomGame}
-                    disabled={!customGameName.trim() || selectedGames.length >= MAX_GAMES}
-                    className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-neutral-700 text-white text-sm font-semibold hover:bg-neutral-600 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Plus className="w-4 h-4" /> Adicionar
-                  </button>
-                </div>
-              </div>
-
               <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-thin pr-1">
                 {selectedGames.length >= MAX_GAMES && (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs mb-2">
@@ -411,7 +389,17 @@ const Funnel: FC = () => {
                   </div>
                 )}
                 {filteredGames.length === 0 ? (
-                  <div className="text-center py-8 text-neutral-500 text-sm">Nenhum jogo encontrado para "{search}"</div>
+                  <div className="text-center py-8">
+                    <p className="text-neutral-500 text-sm mb-3">Nenhum jogo encontrado para "{search}"</p>
+                    {showAddCustom && (
+                      <button
+                        onClick={() => { addCustomGame(searchTrimmed); setSearch(''); }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-xbox-500 text-white text-sm font-semibold hover:bg-xbox-400 transition-all active:scale-95"
+                      >
+                        <Plus className="w-4 h-4" /> Adicionar "{searchTrimmed}"
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   filteredGames.map((game) => {
                     const isSelected = selectedGames.some((g) => g.id === game.id);
