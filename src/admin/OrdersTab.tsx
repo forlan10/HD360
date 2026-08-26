@@ -78,16 +78,18 @@ const OrdersTab: FC = () => {
     o.neighborhood.toLowerCase().includes(search.toLowerCase())
   );
 
-  // For "Baixar Prioritários" view: only orders with at least one game not at no_hd
+  const needsDownload = (gameName: string) => !libraryNames.has(gameName.toLowerCase().trim());
+
+  // For "Baixar Prioritários" view: orders with at least one game not in the master library
   const prioritarios = useMemo(() => {
     return orders
       .filter((o) => o.status !== 'cancelado' && o.status !== 'concluido')
       .map((o) => ({
         order: o,
-        pendingGames: o.selected_games.filter((g) => (g.status || 'pendente') !== 'no_hd'),
+        pendingGames: o.selected_games.filter((g) => needsDownload(g.name)),
       }))
       .filter(({ pendingGames }) => pendingGames.length > 0);
-  }, [orders]);
+  }, [orders, libraryNames]);
 
   if (loading) return <LoadingState text="Carregando pedidos..." />;
   if (error) return <ErrorState text="Erro ao carregar pedidos." onRetry={load} />;
@@ -125,8 +127,8 @@ const OrdersTab: FC = () => {
             <EmptyState icon={ClipboardList} text={search ? 'Nenhum pedido encontrado.' : 'Nenhum pedido recebido ainda.'} />
           ) : (
             filtered.map((order) => {
-              const pendingCount = order.selected_games.filter((g) => (g.status || 'pendente') !== 'no_hd').length;
-              const readyCount = order.selected_games.length - pendingCount;
+              const downloadCount = order.selected_games.filter((g) => needsDownload(g.name)).length;
+              const readyCount = order.selected_games.length - downloadCount;
               return (
                 <div key={order.id} className="bg-neutral-900/80 border border-neutral-800 rounded-2xl overflow-hidden">
                   <button onClick={() => setSelectedOrder(order)} className="w-full p-4 flex items-center justify-between gap-3 text-left hover:bg-neutral-800/30 transition-colors">
@@ -139,24 +141,24 @@ const OrdersTab: FC = () => {
                       </div>
                       <p className="text-xs text-neutral-500">{order.customer_phone} • {order.neighborhood} • {order.console_model}</p>
                       <p className="text-xs text-neutral-600 mt-0.5">{new Date(order.created_at).toLocaleString('pt-BR')}</p>
-                      {pendingCount > 0 && order.status !== 'cancelado' && order.status !== 'concluido' && (
-                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-semibold">
+                      {downloadCount > 0 && order.status !== 'cancelado' && order.status !== 'concluido' && (
+                        <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-semibold">
                           <Download className="w-3 h-3" />
-                          {pendingCount === order.selected_games.length
-                            ? `Baixar ${pendingCount} jogo(s)`
-                            : `Baixar apenas ${pendingCount} jogo(s) para concluir`}
+                          {downloadCount === order.selected_games.length
+                            ? `Baixar ${downloadCount} jogo(s)`
+                            : `Baixar apenas ${downloadCount} jogo(s) para concluir`}
                         </div>
                       )}
-                      {pendingCount === 0 && order.selected_games.length > 0 && order.status !== 'cancelado' && (
+                      {downloadCount === 0 && order.selected_games.length > 0 && order.status !== 'cancelado' && (
                         <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-xbox-500/10 border border-xbox-500/30 text-xbox-400 text-xs font-semibold">
-                          <CheckCircle2 className="w-3 h-3" /> Todos os jogos prontos
+                          <CheckCircle2 className="w-3 h-3" /> Todos os jogos na biblioteca
                         </div>
                       )}
                     </div>
                     <div className="text-right shrink-0 flex items-center gap-2">
                       <div>
                         <p className="text-xs text-neutral-500">{order.selected_games.length} jogos</p>
-                        <p className="text-xs text-neutral-500">{readyCount}/{order.selected_games.length} prontos</p>
+                        <p className="text-xs text-neutral-500">{readyCount}/{order.selected_games.length} na biblioteca</p>
                         {order.total_price != null && <p className="text-sm font-bold text-xbox-400 mt-0.5">R$ {order.total_price.toFixed(2).replace('.', ',')}</p>}
                       </div>
                       <ChevronRight className="w-5 h-5 text-neutral-600" />
@@ -172,7 +174,7 @@ const OrdersTab: FC = () => {
       {view === 'prioritarios' && (
         <div className="space-y-3">
           {prioritarios.length === 0 ? (
-            <EmptyState icon={CheckCircle2} text="Nenhum jogo pendente para baixar. Todos os pedidos estão com o HD pronto!" />
+            <EmptyState icon={CheckCircle2} text="Nenhum jogo pendente para baixar. Todos os pedidos têm jogos na biblioteca!" />
           ) : (
             prioritarios.map(({ order, pendingGames }) => (
               <div key={order.id} className="bg-neutral-900/80 border border-neutral-800 rounded-2xl overflow-hidden">
@@ -187,7 +189,7 @@ const OrdersTab: FC = () => {
                     <ChevronRight className="w-5 h-5 text-neutral-600 shrink-0" />
                   </div>
                   <p className="text-xs text-neutral-500 mb-2">{order.customer_phone} • {order.neighborhood}</p>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-semibold mb-3">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs font-semibold mb-3">
                     <Download className="w-3 h-3" /> Baixar {pendingGames.length} jogo(s)
                   </div>
                   <div className="space-y-1.5">
@@ -234,6 +236,7 @@ const OrderDrawer: FC<{
 }> = ({ order, libraryNames, onClose, onStatusChange, onGameStatusChange, onDelete }) => {
   const games: SelectedGame[] = order.selected_games;
   const isInLibrary = (gameName: string) => libraryNames.has(gameName.toLowerCase().trim());
+  const downloadCount = useMemo(() => games.filter((g) => !isInLibrary(g.name)).length, [games, libraryNames]);
 
   const stats = useMemo(() => {
     const total = games.length || 1;
@@ -321,20 +324,20 @@ const OrderDrawer: FC<{
               <span className="text-xs font-bold text-xbox-400">{stats.readyCount}/{stats.total} prontos</span>
             </div>
 
-            {/* Effort summary */}
-            {stats.pendingCount > 0 ? (
-              <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
-                <Download className="w-4 h-4 text-yellow-400 shrink-0" />
-                <p className="text-sm text-yellow-400 font-semibold">
-                  {stats.pendingCount === stats.total
-                    ? `Baixar ${stats.pendingCount} jogo(s) para concluir`
-                    : `Baixar apenas ${stats.pendingCount} jogo(s) para concluir`}
+            {/* Download effort summary — based on master library, not HD status */}
+            {downloadCount > 0 ? (
+              <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-orange-500/10 border border-orange-500/30">
+                <Download className="w-4 h-4 text-orange-400 shrink-0" />
+                <p className="text-sm text-orange-400 font-semibold">
+                  {downloadCount === stats.total
+                    ? `Baixar ${downloadCount} jogo(s) para concluir`
+                    : `Baixar apenas ${downloadCount} jogo(s) para concluir`}
                 </p>
               </div>
             ) : (
               <div className="mb-4 flex items-center gap-2 p-3 rounded-xl bg-xbox-500/10 border border-xbox-500/30">
                 <CheckCircle2 className="w-4 h-4 text-xbox-400 shrink-0" />
-                <p className="text-sm text-xbox-400 font-semibold">Todos os jogos já estão no HD!</p>
+                <p className="text-sm text-xbox-400 font-semibold">Todos os jogos já estão na biblioteca!</p>
               </div>
             )}
 
