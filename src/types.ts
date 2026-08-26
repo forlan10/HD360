@@ -148,5 +148,10 @@ export interface MasterLibraryEntry {
   game_name: string;
   game_name_normalized: string;
   game_id: string | null;
+  is_working: boolean;
+  not_working_reason: string | null;
+  dubbed_pt: boolean;
+  subtitles_pt: boolean;
+  special_install: string | null;
   created_at?: string;
 }
