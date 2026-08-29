@@ -1,6 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://kyptrjpzhtqceqdbewtl.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt5cHRyanB6aHRxY2VxZGJld3RsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYxNjU2NTksImV4cCI6MjEwMTc0MTY1OX0.dnnrylzko52SXsBtkH4bU3zTRcBdCqH5eiSaYPvEvoI';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+  },
+})
+
+export interface Order {
+  id: string
+  customer_name: string
+  customer_email: string
+  customer_phone: string | null
+  shipping_address: string
+  status: string
+  total: number
+  created_at: string
+}
+
+export interface OrderItem {
+  id: string
+  order_id: string
+  product_name: string
+  unit_price: number
+  quantity: number
+  subtotal: number
+}
+
+export interface CartItem {
+  product_name: string
+  unit_price: number
+  quantity: number
+}

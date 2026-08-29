@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/Cart.tsx","./src/components/CheckoutModal.tsx","./src/components/Header.tsx","./src/components/OrderConfirmation.tsx","./src/components/ProductGrid.tsx","./src/lib/supabase.ts"],"version":"5.9.3"}
